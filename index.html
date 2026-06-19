@@ -156,6 +156,10 @@
       color: #dc2626;
       font-weight: 700;
     }
+    .sub-row .info-value {
+      font-size: 13px;
+      color: #475569;
+    }
     .divider {
       height: 1px;
       background: #e2e8f0;
@@ -230,6 +234,10 @@
               <span class="info-label">距10天100%异动</span>
               <span class="info-value" id="left10">-</span>
             </div>
+            <div class="info-row sub-row">
+              <span class="info-label">次日触发需涨</span>
+              <span class="info-value" id="nextDay10">-</span>
+            </div>
             <div class="divider"></div>
             <div class="info-row">
               <span class="info-label">30日累计偏离</span>
@@ -238,6 +246,10 @@
             <div class="info-row highlight-row">
               <span class="info-label">距30天200%异动</span>
               <span class="info-value" id="left30">-</span>
+            </div>
+            <div class="info-row sub-row">
+              <span class="info-label">次日触发需涨</span>
+              <span class="info-value" id="nextDay30">-</span>
             </div>
           </div>
 
@@ -256,8 +268,8 @@
       </div>
 
       <div class="tip">
-        * 偏离值按区间涨跌幅差值计算，结果为估算值，默认假设指数不涨<br>
-        * 同向异动按3日区间偏离滑动计算，与官方公告可能存在差异<br>
+        * 偏离值按区间涨跌幅差值计算，默认假设指数不涨<br>
+        * 次日触发涨幅按滚动窗口估算，与官方公告可能存在差异<br>
         * 仅供参考，不构成任何投资建议
       </div>
 
@@ -270,8 +282,8 @@
     const THRESHOLD_10D = 100.0;   // 10日偏离阈值 %
     const THRESHOLD_30D = 200.0;   // 30日偏离阈值 %
     const INDEX_EXPECTED_PCT = 0;  // 预期指数每日涨幅 %
-    // 免费CORS代理，搜索接口用，绕过防盗链
-    const CORS_PROXY = 'https://corsproxy.io/?';
+    // 免费CORS代理（搜索接口用，失效可自行替换）
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
     // =================================
 
     const input = document.getElementById('stockInput');
@@ -307,13 +319,13 @@
       if (!e.target.closest('.search-wrap')) hideSuggest();
     });
 
-    // 东方财富搜索接口（CORS代理方式）
+    // 东方财富搜索接口（CORS代理方式，失败静默处理）
     async function fetchSuggest(keyword) {
       const targetUrl = `https://suggest.eastmoney.com/SuggestData/Default.aspx?input=${encodeURIComponent(keyword)}&type=14`;
       try {
         const res = await fetch(CORS_PROXY + encodeURIComponent(targetUrl));
+        if (!res.ok) throw new Error('代理请求失败');
         const text = await res.text();
-        // 提取数组内容：格式为 var str=[...];
         const match = text.match(/var str\s*=\s*(\[.*?\]);?/s);
         if (!match) {
           hideSuggest();
@@ -332,7 +344,7 @@
         });
         renderSuggest(stocks.slice(0, 8));
       } catch (e) {
-        console.error('搜索失败:', e);
+        // 搜索失败静默处理，不影响主功能
         hideSuggest();
       }
     }
@@ -375,12 +387,12 @@
       return null;
     }
 
-    // 板块信息与异动阈值
+    // 板块信息与异动阈值（修正指数代码，确保接口可用）
     function getBoardInfo(stockCode) {
       if (stockCode.startsWith('688')) {
         return {
           board: '科创板',
-          indexCode: '1.000688',
+          indexCode: '1.000688', // 科创50
           limitRate: 0.20,
           anomaly3d: 30,
           anomaly10dMax: 3
@@ -388,15 +400,16 @@
       } else if (stockCode.startsWith('30')) {
         return {
           board: '创业板',
-          indexCode: '0.399102',
+          indexCode: '0.399102', // 创业板综
           limitRate: 0.20,
           anomaly3d: 30,
           anomaly10dMax: 3
         };
-      } else if (stockCode.startsWith('60') || stockCode.startsWith('605')) {
+      } else if (stockCode.startsWith('6')) {
         return {
           board: '沪市主板',
-          indexCode: '1.000001',
+          indexCode: '1.000001', // 上证指数（接口稳定可用）
+          // 备选：上证A股指数 1.000002，数值更贴合官方基准
           limitRate: 0.10,
           anomaly3d: 20,
           anomaly10dMax: 4
@@ -404,7 +417,7 @@
       } else if (['00','001','002','003'].some(p => stockCode.startsWith(p))) {
         return {
           board: '深市主板',
-          indexCode: '0.399107',
+          indexCode: '0.399107', // 深证A指
           limitRate: 0.10,
           anomaly3d: 20,
           anomaly10dMax: 4
@@ -442,7 +455,7 @@
       });
     }
 
-    // 获取日K线收盘价 + 股票名称
+    // 获取日K线收盘价 + 股票名称（正序：旧→新）
     async function getKline(secid, days) {
       const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55&klt=101&fqt=0&end=20500101&lmt=${days}`;
       try {
@@ -461,22 +474,66 @@
       }
     }
 
-    // 计算区间涨跌幅（%）
+    // 计算区间涨跌幅（%）：days个交易日区间，对应days+1根K线
     function calcRangePct(closes, days) {
       const len = closes.length;
       if (len <= days) return null;
-      const latest = closes[len - 1];
-      const before = closes[len - 1 - days];
-      return ((latest / before) - 1) * 100;
+      const end = closes[len - 1];
+      const start = closes[len - 1 - days];
+      return ((end / start) - 1) * 100;
     }
 
-    // 计算近10天内同向异动次数
-    function calcAnomalyCount(stockCloses, indexCloses, threshold3d) {
-      const len = stockCloses.length;
-      const startIdx = Math.max(0, len - 12);
+    // 计算次日触发所需涨幅（滚动窗口，假设指数不涨）
+    function calcNextDayTrigger(closes, indexCloses, days, threshold) {
+      const len = closes.length;
+      // 当前窗口：[len-1-days, len-1] 共days+1根K线，days个交易日
+      // 次日滚动后：[len-days, len] 共days+1根K线，移除最早一天
+      const startAfterRoll = closes[len - days];
+      const indexStartAfterRoll = indexCloses[len - days];
+      const currentEnd = closes[len - 1];
+      const indexCurrentEnd = indexCloses[len - 1];
+
+      // 指数次日不涨，指数区间涨幅 = (indexCurrentEnd / indexStartAfterRoll) - 1
+      const indexRangeAfter = (indexCurrentEnd / indexStartAfterRoll) - 1;
+      // 目标个股区间涨幅 = 阈值 + 指数区间涨幅
+      const targetStockRange = (threshold / 100) + indexRangeAfter;
+      // 反推次日收盘价
+      const targetEndPrice = startAfterRoll * (1 + targetStockRange);
+      // 次日涨幅
+      const nextDayPct = ((targetEndPrice / currentEnd) - 1) * 100;
+      
+      return Math.max(0, nextDayPct);
+    }
+
+    // 计算剩余涨停数（滚动窗口模拟）
+    function calcLimitDays(closes, indexCloses, days, threshold, limitRate) {
+      let stockPrices = [...closes];
+      let indexPrices = [...indexCloses];
+      let count = 0;
+      const limitFactor = 1 + limitRate;
+
+      while (count < 30) {
+        const stockPct = calcRangePct(stockPrices, days);
+        const indexPct = calcRangePct(indexPrices, days);
+        const dev = stockPct - indexPct;
+        if (dev >= threshold) break;
+        // 模拟次日涨停，指数不涨
+        const lastStock = stockPrices[stockPrices.length - 1];
+        const lastIndex = indexPrices[indexPrices.length - 1];
+        stockPrices.push(lastStock * limitFactor);
+        indexPrices.push(lastIndex);
+        count++;
+      }
+      return count;
+    }
+
+    // 计算近10天内同向异动次数（3日区间偏离滑动窗口）
+    function calcAnomalyCount(closes, indexCloses, threshold3d) {
+      const len = closes.length;
+      const startIdx = Math.max(0, len - 13);
       let count = 0;
       for (let i = startIdx; i <= len - 3; i++) {
-        const stockPct = ((stockCloses[i+2] / stockCloses[i]) - 1) * 100;
+        const stockPct = ((closes[i+2] / closes[i]) - 1) * 100;
         const indexPct = ((indexCloses[i+2] / indexCloses[i]) - 1) * 100;
         const dev3d = stockPct - indexPct;
         if (dev3d >= threshold3d) count++;
@@ -506,9 +563,10 @@
         const { board, indexCode, limitRate, anomaly3d, anomaly10dMax } = getBoardInfo(code);
         const stockSecid = formatEastmoneyCode(code);
 
+        // 获取35根K线，覆盖30日区间和滚动计算
         const [stockRes, indexRes] = await Promise.all([
-          getKline(stockSecid, 33),
-          getKline(indexCode, 33)
+          getKline(stockSecid, 35),
+          getKline(indexCode, 35)
         ]);
 
         if (!stockRes || !indexRes) {
@@ -520,38 +578,38 @@
         const indexCloses = indexRes.closes;
         const stockName = stockRes.name || code;
 
-        // 区间偏离值计算
-        const stockPct10 = calcRangePct(stockCloses, 10);
-        const indexPct10 = calcRangePct(indexCloses, 10);
-        const dev10d = stockPct10 - indexPct10;
+        // 1. 区间偏离值（区间涨跌幅差值，对齐行情软件口径）
+        const dev10d = calcRangePct(stockCloses, 10) - calcRangePct(indexCloses, 10);
+        const dev30d = calcRangePct(stockCloses, 30) - calcRangePct(indexCloses, 30);
 
-        const stockPct30 = calcRangePct(stockCloses, 30);
-        const indexPct30 = calcRangePct(indexCloses, 30);
-        const dev30d = stockPct30 - indexPct30;
+        // 2. 次日触发所需涨幅
+        const nextDay10 = calcNextDayTrigger(stockCloses, indexCloses, 10, THRESHOLD_10D);
+        const nextDay30 = calcNextDayTrigger(stockCloses, indexCloses, 30, THRESHOLD_30D);
 
-        // 剩余涨停数计算
-        const perLimitDev = limitRate * 100 - INDEX_EXPECTED_PCT;
-        const remaining10 = THRESHOLD_10D - dev10d;
-        const limitCount10 = remaining10 > 0 ? remaining10 / perLimitDev : 0;
-        const remaining30 = THRESHOLD_30D - dev30d;
-        const limitCount30 = remaining30 > 0 ? remaining30 / perLimitDev : 0;
+        // 3. 剩余涨停数（滚动模拟）
+        const leftDays10 = calcLimitDays(stockCloses, indexCloses, 10, THRESHOLD_10D, limitRate);
+        const leftDays30 = calcLimitDays(stockCloses, indexCloses, 30, THRESHOLD_30D, limitRate);
 
-        // 同向异动次数计算
+        // 4. 同向异动次数
         const anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
         const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
-        const anomalyLimitLeft = (anomalyLeft * anomaly3d / perLimitDev).toFixed(1);
 
         // 渲染结果
         document.getElementById('stockName').textContent = stockName;
         document.getElementById('stockCode').textContent = code;
         document.getElementById('board').textContent = board;
         document.getElementById('limitRate').textContent = `${Math.round(limitRate * 100)}%`;
+        
         document.getElementById('dev10').textContent = dev10d.toFixed(2) + '%';
-        document.getElementById('left10').textContent = `还剩 ${Math.max(0, limitCount10).toFixed(2)} 个涨停`;
+        document.getElementById('left10').textContent = `还剩 ${leftDays10} 个涨停`;
+        document.getElementById('nextDay10').textContent = nextDay10 <= 0 ? '已触发' : `≥ ${nextDay10.toFixed(2)}%`;
+        
         document.getElementById('dev30').textContent = dev30d.toFixed(2) + '%';
-        document.getElementById('left30').textContent = `还剩 ${Math.max(0, limitCount30).toFixed(2)} 个涨停`;
+        document.getElementById('left30').textContent = `还剩 ${leftDays30} 个涨停`;
+        document.getElementById('nextDay30').textContent = nextDay30 <= 0 ? '已触发' : `≥ ${nextDay30.toFixed(2)}%`;
+        
         document.getElementById('anomalyCount').textContent = `${anomalyCount} 次`;
-        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次 ≈ ${anomalyLimitLeft} 个涨停`;
+        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次`;
 
         resultCard.classList.add('show');
       } catch (e) {
