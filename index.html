@@ -163,6 +163,8 @@
     const THRESHOLD_10D = 100.0;   // 10日异动阈值 %
     const THRESHOLD_30D = 200.0;   // 30日异动阈值 %
     const INDEX_EXPECTED_PCT = 0;  // 预期指数每日涨幅 %
+    // 免费公共CORS代理，解决跨域与防盗链问题
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
     // =============================================
 
     const input = document.getElementById('stockInput');
@@ -175,59 +177,41 @@
       if (e.key === 'Enter') handleQuery();
     });
 
-    // 6位股票代码转新浪接口格式
-    function formatSinaCode(code) {
+    // 6位股票代码转东方财富接口格式（沪市1.xxx，深市0.xxx）
+    function formatEastmoneyCode(code) {
       code = code.trim();
       if (!/^\d{6}$/.test(code)) return null;
-      if (code.startsWith('6') || code.startsWith('9')) return `sh${code}`;
-      if (code.startsWith('0') || code.startsWith('3')) return `sz${code}`;
+      if (code.startsWith('6') || code.startsWith('9')) return `1.${code}`;
+      if (code.startsWith('0') || code.startsWith('3')) return `0.${code}`;
       return null;
     }
 
     // 根据代码判断板块、对应指数代码、涨停幅度（固定规则）
     function getBoardInfo(stockCode) {
       if (stockCode.startsWith('688')) {
-        return { board: '科创板', indexCode: 'sh000688', limitRate: 0.20 };
+        return { board: '科创板', indexCode: '1.000688', limitRate: 0.20 };
       } else if (stockCode.startsWith('30')) {
-        return { board: '创业板', indexCode: 'sz399102', limitRate: 0.20 };
+        return { board: '创业板', indexCode: '0.399102', limitRate: 0.20 };
       } else if (stockCode.startsWith('60') || stockCode.startsWith('605')) {
-        return { board: '沪市主板', indexCode: 'sh000001', limitRate: 0.10 };
+        return { board: '沪市主板', indexCode: '1.000001', limitRate: 0.10 };
       } else if (['00','001','002','003'].some(p => stockCode.startsWith(p))) {
-        return { board: '深市主板', indexCode: 'sz399107', limitRate: 0.10 };
+        return { board: '深市主板', indexCode: '0.399107', limitRate: 0.10 };
       } else {
-        return { board: '其他板块', indexCode: 'sh000001', limitRate: 0.10 };
+        return { board: '其他板块', indexCode: '1.000001', limitRate: 0.10 };
       }
     }
 
-    // JSONP 请求封装（解决浏览器跨域问题，纯前端可用）
-    function jsonp(url) {
-      return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_cb_' + Date.now() + Math.random().toString(36).slice(2, 6);
-        const script = document.createElement('script');
-        
-        window[callbackName] = function(data) {
-          resolve(data);
-          document.body.removeChild(script);
-          delete window[callbackName];
-        };
-
-        script.src = url + `&callback=${callbackName}`;
-        script.onerror = () => {
-          reject(new Error('请求失败'));
-          document.body.removeChild(script);
-          delete window[callbackName];
-        };
-        document.body.appendChild(script);
-      });
-    }
-
-    // 获取日K线收盘价
-    async function getKline(symbol, days = 31) {
-      const url = `https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=${symbol}&scale=240&ma=no&datalen=${days}`;
+    // 获取日K线收盘价（东方财富接口 + CORS代理）
+    async function getKline(secid, days = 31) {
+      const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55&klt=101&fqt=0&end=20500101&lmt=${days}`;
       try {
-        const data = await jsonp(url);
-        if (!Array.isArray(data) || data.length < days) return null;
-        return data.map(item => parseFloat(item.close));
+        const res = await fetch(CORS_PROXY + encodeURIComponent(url));
+        const json = await res.json();
+        if (!json || !json.data || !json.data.klines || json.data.klines.length < days) {
+          return null;
+        }
+        // klines格式: "日期,开盘,收盘,最高,最低"，取第2位收盘价
+        return json.data.klines.map(item => parseFloat(item.split(',')[2]));
       } catch (e) {
         console.error('行情获取失败:', e);
         return null;
@@ -262,11 +246,11 @@
       try {
         // 1. 板块与指数匹配
         const { board, indexCode, limitRate } = getBoardInfo(stockCode);
-        const sinaStockCode = formatSinaCode(stockCode);
+        const stockSecid = formatEastmoneyCode(stockCode);
 
         // 2. 并行获取个股和指数K线
         const [stockCloses, indexCloses] = await Promise.all([
-          getKline(sinaStockCode, 31),
+          getKline(stockSecid, 31),
           getKline(indexCode, 31)
         ]);
 
