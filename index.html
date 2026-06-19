@@ -269,7 +269,7 @@
 
       <div class="tip">
         * 偏离值按区间涨跌幅差值计算，默认假设指数不涨<br>
-        * 次日触发涨幅按滚动窗口估算，与官方公告可能存在差异<br>
+        * 剩余涨停按滚动窗口逐日模拟，与官方公告可能存在差异<br>
         * 仅供参考，不构成任何投资建议
       </div>
 
@@ -282,7 +282,7 @@
     const THRESHOLD_10D = 100.0;   // 10日偏离阈值 %
     const THRESHOLD_30D = 200.0;   // 30日偏离阈值 %
     const INDEX_EXPECTED_PCT = 0;  // 预期指数每日涨幅 %
-    // 免费CORS代理（搜索接口用，失效可自行替换）
+    // 免费CORS代理（搜索接口用）
     const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
     // =================================
 
@@ -344,7 +344,6 @@
         });
         renderSuggest(stocks.slice(0, 8));
       } catch (e) {
-        // 搜索失败静默处理，不影响主功能
         hideSuggest();
       }
     }
@@ -387,12 +386,12 @@
       return null;
     }
 
-    // 板块信息与异动阈值（修正指数代码，确保接口可用）
+    // 板块信息与异动阈值
     function getBoardInfo(stockCode) {
       if (stockCode.startsWith('688')) {
         return {
           board: '科创板',
-          indexCode: '1.000688', // 科创50
+          indexCode: '1.000688',
           limitRate: 0.20,
           anomaly3d: 30,
           anomaly10dMax: 3
@@ -400,7 +399,7 @@
       } else if (stockCode.startsWith('30')) {
         return {
           board: '创业板',
-          indexCode: '0.399102', // 创业板综
+          indexCode: '0.399102',
           limitRate: 0.20,
           anomaly3d: 30,
           anomaly10dMax: 3
@@ -408,8 +407,7 @@
       } else if (stockCode.startsWith('6')) {
         return {
           board: '沪市主板',
-          indexCode: '1.000001', // 上证指数（接口稳定可用）
-          // 备选：上证A股指数 1.000002，数值更贴合官方基准
+          indexCode: '1.000001',
           limitRate: 0.10,
           anomaly3d: 20,
           anomaly10dMax: 4
@@ -417,7 +415,7 @@
       } else if (['00','001','002','003'].some(p => stockCode.startsWith(p))) {
         return {
           board: '深市主板',
-          indexCode: '0.399107', // 深证A指
+          indexCode: '0.399107',
           limitRate: 0.10,
           anomaly3d: 20,
           anomaly10dMax: 4
@@ -474,7 +472,7 @@
       }
     }
 
-    // 计算区间涨跌幅（%）：days个交易日区间，对应days+1根K线
+    // 计算区间涨跌幅（%）：days个交易日区间
     function calcRangePct(closes, days) {
       const len = closes.length;
       if (len <= days) return null;
@@ -486,16 +484,15 @@
     // 计算次日触发所需涨幅（滚动窗口，假设指数不涨）
     function calcNextDayTrigger(closes, indexCloses, days, threshold) {
       const len = closes.length;
-      // 当前窗口：[len-1-days, len-1] 共days+1根K线，days个交易日
-      // 次日滚动后：[len-days, len] 共days+1根K线，移除最早一天
+      // 滚动后窗口起点后移一位
       const startAfterRoll = closes[len - days];
       const indexStartAfterRoll = indexCloses[len - days];
       const currentEnd = closes[len - 1];
       const indexCurrentEnd = indexCloses[len - 1];
 
-      // 指数次日不涨，指数区间涨幅 = (indexCurrentEnd / indexStartAfterRoll) - 1
+      // 指数次日不涨
       const indexRangeAfter = (indexCurrentEnd / indexStartAfterRoll) - 1;
-      // 目标个股区间涨幅 = 阈值 + 指数区间涨幅
+      // 目标个股区间涨幅
       const targetStockRange = (threshold / 100) + indexRangeAfter;
       // 反推次日收盘价
       const targetEndPrice = startAfterRoll * (1 + targetStockRange);
@@ -505,26 +502,54 @@
       return Math.max(0, nextDayPct);
     }
 
-    // 计算剩余涨停数（滚动窗口模拟）
+    // 计算剩余涨停数（滚动窗口模拟，支持小数）
     function calcLimitDays(closes, indexCloses, days, threshold, limitRate) {
       let stockPrices = [...closes];
       let indexPrices = [...indexCloses];
-      let count = 0;
       const limitFactor = 1 + limitRate;
+      let fullDays = 0;
 
-      while (count < 30) {
+      // 先算完整涨停天数
+      while (fullDays < 30) {
         const stockPct = calcRangePct(stockPrices, days);
         const indexPct = calcRangePct(indexPrices, days);
         const dev = stockPct - indexPct;
         if (dev >= threshold) break;
-        // 模拟次日涨停，指数不涨
+        
+        // 模拟一个完整涨停，指数不涨
         const lastStock = stockPrices[stockPrices.length - 1];
         const lastIndex = indexPrices[indexPrices.length - 1];
         stockPrices.push(lastStock * limitFactor);
         indexPrices.push(lastIndex);
-        count++;
+        fullDays++;
       }
-      return count;
+
+      // 如果刚好多天涨停刚好触发，直接返回
+      const finalDev = calcRangePct(stockPrices, days) - calcRangePct(indexPrices, days);
+      if (finalDev >= threshold && fullDays === 0) return 0;
+
+      // 计算最后一天需要的比例（小数部分）
+      if (finalDev >= threshold) {
+        // 回退最后一个涨停，计算需要多少比例
+        stockPrices.pop();
+        indexPrices.pop();
+        
+        const len = stockPrices.length;
+        const startPrice = stockPrices[len - days];
+        const indexStartPrice = indexPrices[len - days];
+        const currentPrice = stockPrices[len - 1];
+        const currentIndex = indexPrices[len - 1];
+
+        const indexRange = (currentIndex / indexStartPrice) - 1;
+        const targetStockRange = (threshold / 100) + indexRange;
+        const targetPrice = startPrice * (1 + targetStockRange);
+        const neededPct = ((targetPrice / currentPrice) - 1) * 100;
+        const fraction = neededPct / (limitRate * 100);
+        
+        return +(fullDays - 1 + fraction).toFixed(1);
+      }
+
+      return +fullDays.toFixed(1);
     }
 
     // 计算近10天内同向异动次数（3日区间偏离滑动窗口）
@@ -562,6 +587,7 @@
       try {
         const { board, indexCode, limitRate, anomaly3d, anomaly10dMax } = getBoardInfo(code);
         const stockSecid = formatEastmoneyCode(code);
+        const perLimitDev = limitRate * 100;
 
         // 获取35根K线，覆盖30日区间和滚动计算
         const [stockRes, indexRes] = await Promise.all([
@@ -578,7 +604,7 @@
         const indexCloses = indexRes.closes;
         const stockName = stockRes.name || code;
 
-        // 1. 区间偏离值（区间涨跌幅差值，对齐行情软件口径）
+        // 1. 当前区间偏离值
         const dev10d = calcRangePct(stockCloses, 10) - calcRangePct(indexCloses, 10);
         const dev30d = calcRangePct(stockCloses, 30) - calcRangePct(indexCloses, 30);
 
@@ -586,13 +612,14 @@
         const nextDay10 = calcNextDayTrigger(stockCloses, indexCloses, 10, THRESHOLD_10D);
         const nextDay30 = calcNextDayTrigger(stockCloses, indexCloses, 30, THRESHOLD_30D);
 
-        // 3. 剩余涨停数（滚动模拟）
+        // 3. 剩余涨停数（滚动窗口模拟，1位小数）
         const leftDays10 = calcLimitDays(stockCloses, indexCloses, 10, THRESHOLD_10D, limitRate);
         const leftDays30 = calcLimitDays(stockCloses, indexCloses, 30, THRESHOLD_30D, limitRate);
 
-        // 4. 同向异动次数
+        // 4. 同向异动次数 + 对应涨停估算
         const anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
         const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
+        const anomalyLimitLeft = (anomalyLeft * anomaly3d / perLimitDev).toFixed(1);
 
         // 渲染结果
         document.getElementById('stockName').textContent = stockName;
@@ -609,7 +636,7 @@
         document.getElementById('nextDay30').textContent = nextDay30 <= 0 ? '已触发' : `≥ ${nextDay30.toFixed(2)}%`;
         
         document.getElementById('anomalyCount').textContent = `${anomalyCount} 次`;
-        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次`;
+        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次 ≈ ${anomalyLimitLeft} 个涨停`;
 
         resultCard.classList.add('show');
       } catch (e) {
