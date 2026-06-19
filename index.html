@@ -7,175 +7,310 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f5f6f8;
-      color: #333;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+      min-height: 100vh;
       padding: 40px 20px;
+      color: #1e293b;
     }
     .container {
-      max-width: 500px;
+      max-width: 520px;
       margin: 0 auto;
-      background: #fff;
-      border-radius: 16px;
-      padding: 32px 24px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 36px 28px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
     }
     .title {
-      font-size: 22px;
-      font-weight: 600;
+      font-size: 24px;
+      font-weight: 700;
       text-align: center;
       margin-bottom: 28px;
-      color: #1a1a1a;
+      background: linear-gradient(135deg, #0f766e, #059669);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
-    .input-row {
-      display: flex;
-      gap: 12px;
+
+    /* 搜索区域 */
+    .search-wrap {
+      position: relative;
       margin-bottom: 28px;
     }
-    input {
-      flex: 1;
-      padding: 12px 16px;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
+    .search-input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
       font-size: 16px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: all 0.25s ease;
+      background: #f8fafc;
     }
-    input:focus { border-color: #07c160; }
-    button {
-      padding: 0 24px;
-      background: #07c160;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.2s;
+    .search-input:focus {
+      border-color: #059669;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(5,150,105,0.1);
     }
-    button:hover { background: #06ad56; }
-    button:disabled { background: #9dd8b8; cursor: not-allowed; }
-
-    .result-card {
-      display: none;
-      background: #f7f8fa;
+    .suggest-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid #e2e8f0;
       border-radius: 12px;
-      padding: 20px;
+      margin-top: 6px;
+      max-height: 280px;
+      overflow-y: auto;
+      z-index: 99;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
     }
-    .result-card.show { display: block; }
-    .row {
+    .suggest-list.show { display: block; }
+    .suggest-item {
+      padding: 12px 18px;
+      cursor: pointer;
       display: flex;
       justify-content: space-between;
-      padding: 10px 0;
+      align-items: center;
+      font-size: 15px;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.15s;
+    }
+    .suggest-item:last-child { border-bottom: none; }
+    .suggest-item:hover { background: #f0fdf4; }
+    .suggest-name { font-weight: 500; }
+    .suggest-code { color: #64748b; font-size: 14px; }
+
+    .query-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-bottom: 8px;
+    }
+    .query-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.3); }
+    .query-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* 结果卡片 */
+    .result-card {
+      display: none;
+      background: #f8fafc;
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .result-card.show { display: block; }
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 14px;
+      padding-left: 8px;
+      border-left: 3px solid #059669;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 9px 0;
       font-size: 15px;
     }
-    .label { color: #666; }
-    .val { font-weight: 500; }
-    .highlight .val {
-      font-size: 16px;
-      color: #fa5151;
-      font-weight: 600;
+    .info-label { color: #64748b; }
+    .info-value { font-weight: 500; }
+    .highlight-row .info-value {
+      font-size: 17px;
+      color: #dc2626;
+      font-weight: 700;
     }
     .divider {
       height: 1px;
-      background: #e5e5e5;
-      margin: 8px 0;
+      background: #e2e8f0;
+      margin: 16px 0;
     }
+
     .tip {
       font-size: 12px;
-      color: #999;
+      color: #94a3b8;
       text-align: center;
-      margin-top: 16px;
-      line-height: 1.5;
+      margin-top: 20px;
+      line-height: 1.6;
     }
     .error-msg {
-      color: #fa5151;
+      color: #dc2626;
       text-align: center;
-      padding: 20px 0;
+      padding: 24px 0;
       font-size: 14px;
     }
 
     @media (max-width: 480px) {
       body { padding: 20px 12px; }
-      .container { padding: 24px 16px; }
-      .title { font-size: 19px; }
+      .card { padding: 28px 20px; }
+      .title { font-size: 20px; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="title">异动剩余涨停计算器</div>
+    <div class="card">
+      <div class="title">异动剩余涨停计算器</div>
 
-    <div class="input-row">
-      <input 
-        id="stockInput" 
-        type="text" 
-        placeholder="输入6位股票代码" 
-        maxlength="6"
-        autocomplete="off"
-      />
-      <button id="queryBtn" onclick="handleQuery()">查询</button>
+      <div class="search-wrap">
+        <input 
+          id="stockInput" 
+          class="search-input"
+          type="text" 
+          placeholder="输入股票代码 / 名称 / 拼音首字母" 
+          autocomplete="off"
+        />
+        <div id="suggestList" class="suggest-list"></div>
+      </div>
+
+      <button id="queryBtn" class="query-btn" onclick="handleQuery()">查询</button>
+
+      <div id="resultCard" class="result-card">
+        <div class="section-title">基础信息</div>
+        <div class="info-row">
+          <span class="info-label">所属板块</span>
+          <span class="info-value" id="board">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">单日涨停幅度</span>
+          <span class="info-value" id="limitRate">-</span>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-title">累计偏离异动</div>
+        <div class="info-row">
+          <span class="info-label">10日累计偏离值</span>
+          <span class="info-value" id="dev10">-</span>
+        </div>
+        <div class="info-row highlight-row">
+          <span class="info-label">距10天100%异动</span>
+          <span class="info-value" id="left10">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">30日累计偏离值</span>
+          <span class="info-value" id="dev30">-</span>
+        </div>
+        <div class="info-row highlight-row">
+          <span class="info-label">距30天200%异动</span>
+          <span class="info-value" id="left30">-</span>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-title">同向异动次数</div>
+        <div class="info-row">
+          <span class="info-label">近10日已触发异动</span>
+          <span class="info-value" id="anomalyCount">-</span>
+        </div>
+        <div class="info-row highlight-row">
+          <span class="info-label">距严重异动阈值</span>
+          <span class="info-value" id="anomalyLeft">-</span>
+        </div>
+
+        <div class="tip">
+          * 所有结果均为估算值，默认假设指数不涨<br>
+          * 同向异动按3日累计偏离值滑动计算，与官方公告可能有差异<br>
+          * 仅供参考，不构成任何投资建议
+        </div>
+      </div>
+
+      <div id="errorMsg" class="error-msg" style="display:none;"></div>
     </div>
-
-    <div id="resultCard" class="result-card">
-      <div class="row">
-        <span class="label">所属板块</span>
-        <span class="val" id="board">-</span>
-      </div>
-      <div class="row">
-        <span class="label">单日涨停幅度</span>
-        <span class="val" id="limitRate">-</span>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="row">
-        <span class="label">10日累计偏离值</span>
-        <span class="val" id="dev10">-</span>
-      </div>
-      <div class="row highlight">
-        <span class="label">距10天100%异动</span>
-        <span class="val" id="left10">-</span>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="row">
-        <span class="label">30日累计偏离值</span>
-        <span class="val" id="dev30">-</span>
-      </div>
-      <div class="row highlight">
-        <span class="label">距30天200%异动</span>
-        <span class="val" id="left30">-</span>
-      </div>
-
-      <div class="tip">
-        * 结果为估算值，默认假设指数不涨<br>
-        * 仅供参考，不构成任何投资建议
-      </div>
-    </div>
-
-    <div id="errorMsg" class="error-msg" style="display:none;"></div>
   </div>
 
   <script>
-    // ========== 固定配置参数，可自行修改 ==========
-    const THRESHOLD_10D = 100.0;   // 10日异动阈值 %
-    const THRESHOLD_30D = 200.0;   // 30日异动阈值 %
+    // ========== 固定配置参数 ==========
+    const THRESHOLD_10D = 100.0;   // 10日偏离阈值 %
+    const THRESHOLD_30D = 200.0;   // 30日偏离阈值 %
     const INDEX_EXPECTED_PCT = 0;  // 预期指数每日涨幅 %
-    // =============================================
+    // =================================
 
     const input = document.getElementById('stockInput');
     const btn = document.getElementById('queryBtn');
     const resultCard = document.getElementById('resultCard');
     const errorMsg = document.getElementById('errorMsg');
+    const suggestList = document.getElementById('suggestList');
 
-    // 回车触发查询
+    let searchTimer = null;
+    let currentStockCode = '';
+
+    // 回车查询
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') handleQuery();
+      if (e.key === 'Enter') {
+        hideSuggest();
+        handleQuery();
+      }
     });
 
-    // 6位股票代码转东方财富接口格式（沪市1.xxx，深市0.xxx）
+    // 输入联想搜索
+    input.addEventListener('input', e => {
+      const val = e.target.value.trim();
+      clearTimeout(searchTimer);
+      if (val.length < 1) {
+        hideSuggest();
+        return;
+      }
+      searchTimer = setTimeout(() => fetchSuggest(val), 300);
+    });
+
+    // 点击外部关闭下拉
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-wrap')) hideSuggest();
+    });
+
+    // 搜索联想（东方财富原生接口，支持拼音/汉字/代码）
+    function fetchSuggest(keyword) {
+      const url = `https://suggest.eastmoney.com/SuggestData/Default.aspx?input=${encodeURIComponent(keyword)}&type=14`;
+      jsonpRequest(url, 'cb').then(data => {
+        if (!data || !data.length) {
+          hideSuggest();
+          return;
+        }
+        renderSuggest(data.slice(0, 8));
+      }).catch(() => hideSuggest());
+    }
+
+    function renderSuggest(list) {
+      let html = '';
+      list.forEach(item => {
+        // 格式：代码,名称,拼音首字母,...
+        const parts = item.split(',');
+        if (parts.length < 3) return;
+        const code = parts[1];
+        const name = parts[2];
+        html += `
+          <div class="suggest-item" onclick="selectStock('${code}','${name}')">
+            <span class="suggest-name">${name}</span>
+            <span class="suggest-code">${code}</span>
+          </div>
+        `;
+      });
+      suggestList.innerHTML = html;
+      suggestList.classList.add('show');
+    }
+
+    function selectStock(code, name) {
+      input.value = name + ' (' + code + ')';
+      currentStockCode = code;
+      hideSuggest();
+      handleQuery();
+    }
+
+    function hideSuggest() {
+      suggestList.classList.remove('show');
+    }
+
+    // 6位代码转东方财富secid格式
     function formatEastmoneyCode(code) {
       code = code.trim();
       if (!/^\d{6}$/.test(code)) return null;
@@ -184,23 +319,53 @@
       return null;
     }
 
-    // 根据代码判断板块、对应指数代码、涨停幅度（固定规则）
+    // 板块信息与异动阈值
     function getBoardInfo(stockCode) {
       if (stockCode.startsWith('688')) {
-        return { board: '科创板', indexCode: '1.000688', limitRate: 0.20 };
+        return {
+          board: '科创板',
+          indexCode: '1.000688',
+          limitRate: 0.20,
+          anomaly3d: 30,    // 3日同向异动阈值 %
+          anomaly10dMax: 3  // 10日严重异动次数
+        };
       } else if (stockCode.startsWith('30')) {
-        return { board: '创业板', indexCode: '0.399102', limitRate: 0.20 };
+        return {
+          board: '创业板',
+          indexCode: '0.399102',
+          limitRate: 0.20,
+          anomaly3d: 30,
+          anomaly10dMax: 3
+        };
       } else if (stockCode.startsWith('60') || stockCode.startsWith('605')) {
-        return { board: '沪市主板', indexCode: '1.000001', limitRate: 0.10 };
+        return {
+          board: '沪市主板',
+          indexCode: '1.000001',
+          limitRate: 0.10,
+          anomaly3d: 20,
+          anomaly10dMax: 4
+        };
       } else if (['00','001','002','003'].some(p => stockCode.startsWith(p))) {
-        return { board: '深市主板', indexCode: '0.399107', limitRate: 0.10 };
+        return {
+          board: '深市主板',
+          indexCode: '0.399107',
+          limitRate: 0.10,
+          anomaly3d: 20,
+          anomaly10dMax: 4
+        };
       } else {
-        return { board: '其他板块', indexCode: '1.000001', limitRate: 0.10 };
+        return {
+          board: '其他板块',
+          indexCode: '1.000001',
+          limitRate: 0.10,
+          anomaly3d: 20,
+          anomaly10dMax: 4
+        };
       }
     }
 
-    // JSONP 请求封装（原生支持，无需代理）
-    function jsonpRequest(url) {
+    // JSONP通用封装
+    function jsonpRequest(url, cbParam = 'cb') {
       return new Promise((resolve, reject) => {
         const callbackName = 'cb_' + Date.now() + Math.random().toString(36).slice(2, 6);
         const script = document.createElement('script');
@@ -211,7 +376,7 @@
           delete window[callbackName];
         };
 
-        script.src = url + `&cb=${callbackName}`;
+        script.src = url + `&${cbParam}=${callbackName}`;
         script.onerror = () => {
           reject(new Error('请求失败'));
           document.body.removeChild(script);
@@ -221,15 +386,14 @@
       });
     }
 
-    // 获取日K线收盘价（东方财富原生JSONP接口，无代理）
-    async function getKline(secid, days = 31) {
+    // 获取日K线收盘价
+    async function getKline(secid, days) {
       const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55&klt=101&fqt=0&end=20500101&lmt=${days}`;
       try {
-        const json = await jsonpRequest(url);
+        const json = await jsonpRequest(url, 'cb');
         if (!json || !json.data || !json.data.klines || json.data.klines.length < days) {
           return null;
         }
-        // klines格式: "日期,开盘,收盘,最高,最低"，取第2位收盘价
         return json.data.klines.map(item => parseFloat(item.split(',')[2]));
       } catch (e) {
         console.error('行情获取失败:', e);
@@ -237,7 +401,7 @@
       }
     }
 
-    // 根据收盘价计算每日涨跌幅列表（%）
+    // 计算每日涨跌幅列表 %
     function calcPctList(closes) {
       const pctList = [];
       for (let i = 1; i < closes.length; i++) {
@@ -247,15 +411,30 @@
       return pctList;
     }
 
+    // 计算近10天内同向异动次数（3日累计偏离滑动窗口）
+    function calcAnomalyCount(devList, threshold3d) {
+      let count = 0;
+      // 取最近10个交易日的偏离值，滑动计算每连续3天的累计
+      const recent10 = devList.slice(-10);
+      for (let i = 0; i <= recent10.length - 3; i++) {
+        const sum3 = recent10[i] + recent10[i+1] + recent10[i+2];
+        if (sum3 >= threshold3d) count++;
+      }
+      return count;
+    }
+
     // 主查询函数
     async function handleQuery() {
-      const stockCode = input.value.trim();
+      // 提取6位代码
+      let code = currentStockCode || input.value.trim();
+      const match = code.match(/\d{6}/);
+      if (match) code = match[0];
+
       resultCard.classList.remove('show');
       errorMsg.style.display = 'none';
 
-      // 输入校验
-      if (!/^\d{6}$/.test(stockCode)) {
-        showError('请输入6位数字股票代码');
+      if (!/^\d{6}$/.test(code)) {
+        showError('请输入有效的6位数字股票代码');
         return;
       }
 
@@ -263,14 +442,13 @@
       btn.textContent = '查询中...';
 
       try {
-        // 1. 板块与指数匹配
-        const { board, indexCode, limitRate } = getBoardInfo(stockCode);
-        const stockSecid = formatEastmoneyCode(stockCode);
+        const { board, indexCode, limitRate, anomaly3d, anomaly10dMax } = getBoardInfo(code);
+        const stockSecid = formatEastmoneyCode(code);
 
-        // 2. 并行获取个股和指数K线
+        // 取33天K线，保证有32个涨跌幅，覆盖30日+同向异动计算
         const [stockCloses, indexCloses] = await Promise.all([
-          getKline(stockSecid, 31),
-          getKline(indexCode, 31)
+          getKline(stockSecid, 33),
+          getKline(indexCode, 33)
         ]);
 
         if (!stockCloses || !indexCloses) {
@@ -278,34 +456,35 @@
           return;
         }
 
-        // 3. 计算每日涨跌幅
-        const stockPct = calcPctList(stockCloses); // 30个交易日
+        const stockPct = calcPctList(stockCloses);
         const indexPct = calcPctList(indexCloses);
+        const devList = stockPct.map((s, i) => s - indexPct[i]);
 
-        // 4. 计算累计偏离值
-        let dev10d = 0;
-        for (let i = stockPct.length - 10; i < stockPct.length; i++) {
-          dev10d += stockPct[i] - indexPct[i];
-        }
-        let dev30d = 0;
-        for (let i = 0; i < stockPct.length; i++) {
-          dev30d += stockPct[i] - indexPct[i];
-        }
+        // 1. 累计偏离值计算
+        const dev10d = devList.slice(-10).reduce((a,b) => a+b, 0);
+        const dev30d = devList.slice(-30).reduce((a,b) => a+b, 0);
 
-        // 5. 计算剩余涨停数
         const perLimitDev = limitRate * 100 - INDEX_EXPECTED_PCT;
         const remaining10 = THRESHOLD_10D - dev10d;
         const limitCount10 = remaining10 > 0 ? remaining10 / perLimitDev : 0;
         const remaining30 = THRESHOLD_30D - dev30d;
         const limitCount30 = remaining30 > 0 ? remaining30 / perLimitDev : 0;
 
-        // 6. 渲染结果
+        // 2. 同向异动次数计算
+        const anomalyCount = calcAnomalyCount(devList, anomaly3d);
+        const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
+        // 单次异动约需2个涨停（3日累计20%≈2个10%涨停）
+        const anomalyLimitLeft = anomalyLeft * 2;
+
+        // 渲染结果
         document.getElementById('board').textContent = board;
         document.getElementById('limitRate').textContent = `${Math.round(limitRate * 100)}%`;
         document.getElementById('dev10').textContent = dev10d.toFixed(2) + '%';
         document.getElementById('left10').textContent = `还剩 ${Math.max(0, limitCount10).toFixed(2)} 个涨停`;
         document.getElementById('dev30').textContent = dev30d.toFixed(2) + '%';
         document.getElementById('left30').textContent = `还剩 ${Math.max(0, limitCount30).toFixed(2)} 个涨停`;
+        document.getElementById('anomalyCount').textContent = `${anomalyCount} 次`;
+        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次 ≈ ${anomalyLimitLeft} 个涨停`;
 
         resultCard.classList.add('show');
       } catch (e) {
