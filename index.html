@@ -5,54 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>异动剩余涨停计算器</title>
   <style>
+    :root {
+      --brand: #059669;
+      --brand-dark: #0f766e;
+      --brand-light: #10b981;
+      --danger: #dc2626;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #e9eef4;
+      --bg-soft: #f6f9fc;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(16,185,129,0.12), transparent 60%),
+        radial-gradient(1000px 500px at 110% 0%, rgba(15,118,110,0.12), transparent 55%),
+        linear-gradient(135deg, #eef3f8 0%, #e3ebf3 100%);
       min-height: 100vh;
-      padding: 30px 20px;
+      padding: 40px 20px;
       color: #1e293b;
+      -webkit-font-smoothing: antialiased;
     }
-    .container {
-      max-width: 720px;
-      margin: 0 auto;
-    }
+    .container { max-width: 760px; margin: 0 auto; }
     .card {
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 28px 24px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 24px;
+      padding: 32px 28px;
+      box-shadow: 0 20px 50px -20px rgba(15,23,42,0.25), 0 4px 12px rgba(15,23,42,0.04);
     }
     .title {
-      font-size: 22px;
-      font-weight: 700;
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
       text-align: center;
-      margin-bottom: 20px;
-      background: linear-gradient(135deg, #0f766e, #059669);
+      margin-bottom: 6px;
+      background: linear-gradient(120deg, var(--brand-dark), var(--brand-light));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
 
     /* 搜索区域 */
-    .search-wrap {
-      position: relative;
-      margin-bottom: 20px;
-    }
+    .search-wrap { position: relative; margin-bottom: 14px; }
     .search-input {
       width: 100%;
-      padding: 12px 16px;
-      border: 2px solid #e2e8f0;
-      border-radius: 12px;
+      padding: 14px 18px 14px 44px;
+      border: 1.5px solid var(--line);
+      border-radius: 14px;
       font-size: 15px;
       outline: none;
       transition: all 0.25s ease;
-      background: #f8fafc;
+      background: #fff
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E")
+        no-repeat 15px center;
     }
     .search-input:focus {
-      border-color: #059669;
-      background: #fff;
-      box-shadow: 0 0 0 4px rgba(5,150,105,0.1);
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(5,150,105,0.12);
     }
     .suggest-list {
       position: absolute;
@@ -60,18 +78,20 @@
       left: 0;
       right: 0;
       background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      margin-top: 6px;
-      max-height: 260px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      margin-top: 8px;
+      max-height: 280px;
       overflow-y: auto;
       z-index: 99;
       display: none;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      box-shadow: 0 16px 40px -12px rgba(15,23,42,0.22);
+      overflow: hidden;
     }
-    .suggest-list.show { display: block; }
+    .suggest-list.show { display: block; animation: pop 0.16s ease; }
+    @keyframes pop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
     .suggest-item {
-      padding: 10px 16px;
+      padding: 12px 18px;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
@@ -82,110 +102,120 @@
     }
     .suggest-item:last-child { border-bottom: none; }
     .suggest-item:hover { background: #f0fdf4; }
-    .suggest-name { font-weight: 500; }
-    .suggest-code { color: #64748b; font-size: 13px; }
+    .suggest-name { font-weight: 600; color: var(--ink); }
+    .suggest-code {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      background: #f1f5f9;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
 
     .query-btn {
       width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #059669, #10b981);
+      padding: 14px;
+      background: linear-gradient(120deg, var(--brand), var(--brand-light));
       color: #fff;
       border: none;
-      border-radius: 12px;
+      border-radius: 14px;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 1px;
       cursor: pointer;
       transition: all 0.25s ease;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 20px -6px rgba(16,185,129,0.5);
     }
-    .query-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.3); }
+    .query-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -6px rgba(16,185,129,0.6); }
+    .query-btn:active { transform: translateY(0); }
     .query-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
     /* 结果区域 - 左右两栏布局 */
-    .result-card {
-      display: none;
-      gap: 20px;
-    }
-    .result-card.show { display: flex; }
+    .result-card { display: none; gap: 18px; }
+    .result-card.show { display: flex; animation: fadeUp 0.3s ease; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
     .col-left {
       flex: 0 0 38%;
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 18px;
+      background: linear-gradient(160deg, #0f766e, #059669);
+      color: #fff;
+      border-radius: 18px;
+      padding: 22px 20px;
+      box-shadow: 0 12px 28px -12px rgba(5,150,105,0.6);
     }
-    .col-right {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    .col-right { flex: 1; display: flex; flex-direction: column; gap: 16px; }
     .section {
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 16px 18px;
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 20px;
     }
     .section-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #334155;
-      margin-bottom: 12px;
-      padding-left: 6px;
-      border-left: 3px solid #059669;
-    }
-    .stock-name {
-      font-size: 20px;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 4px;
-    }
-    .stock-code {
       font-size: 13px;
-      color: #64748b;
-      margin-bottom: 16px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 14px;
+      padding-left: 10px;
+      border-left: 3px solid var(--brand);
+      letter-spacing: 0.3px;
     }
+    .stock-name { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+    .stock-code {
+      font-size: 12px;
+      color: rgba(255,255,255,0.75);
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+    }
+    .col-left .info-row { border-color: rgba(255,255,255,0.15); }
+    .col-left .info-label { color: rgba(255,255,255,0.75); }
+    .col-left .info-value { color: #fff; }
     .info-row {
       display: flex;
       justify-content: space-between;
-      padding: 6px 0;
+      align-items: center;
+      padding: 9px 0;
       font-size: 14px;
+      border-bottom: 1px dashed transparent;
     }
-    .info-label { color: #64748b; }
-    .info-value { font-weight: 500; }
+    .info-label { color: var(--muted); }
+    .info-value { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
     .highlight-row .info-value {
-      font-size: 15px;
-      color: #dc2626;
-      font-weight: 700;
+      font-size: 14px;
+      color: var(--danger);
+      font-weight: 800;
+      background: #fef2f2;
+      padding: 3px 10px;
+      border-radius: 8px;
     }
-    .sub-row .info-value {
-      font-size: 13px;
-      color: #475569;
-    }
-    .divider {
-      height: 1px;
-      background: #e2e8f0;
-      margin: 10px 0;
-    }
+    .sub-row .info-value { font-size: 13px; color: #475569; font-weight: 500; }
+    .divider { height: 1px; background: var(--line); margin: 12px 0; }
 
     .tip {
       font-size: 11px;
       color: #94a3b8;
       text-align: center;
-      margin-top: 16px;
-      line-height: 1.5;
+      margin-top: 18px;
+      line-height: 1.7;
     }
     .error-msg {
-      color: #dc2626;
+      color: var(--danger);
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
       text-align: center;
-      padding: 20px 0;
+      padding: 14px;
+      margin-top: 4px;
       font-size: 14px;
     }
 
     @media (max-width: 640px) {
-      body { padding: 16px 10px; }
-      .card { padding: 20px 16px; }
-      .result-card { flex-direction: column; gap: 12px; }
+      body { padding: 20px 12px; }
+      .card { padding: 22px 18px; border-radius: 20px; }
+      .title { font-size: 21px; }
+      .result-card { flex-direction: column; gap: 14px; }
       .col-left { flex: none; }
-      .stock-name { font-size: 18px; }
+      .stock-name { font-size: 20px; }
     }
   </style>
 </head>
@@ -193,6 +223,7 @@
   <div class="container">
     <div class="card">
       <div class="title">异动剩余涨停计算器</div>
+      <div class="subtitle">输入代码 / 名称 / 拼音首字母，估算距异常波动还剩几个涨停</div>
 
       <div class="search-wrap">
         <input 
@@ -282,8 +313,6 @@
     const THRESHOLD_10D = 100.0;   // 10日偏离阈值 %
     const THRESHOLD_30D = 200.0;   // 30日偏离阈值 %
     const INDEX_EXPECTED_PCT = 0;  // 预期指数每日涨幅 %
-    // 免费CORS代理（搜索接口用）
-    const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
     // =================================
 
     const input = document.getElementById('stockInput');
@@ -319,28 +348,19 @@
       if (!e.target.closest('.search-wrap')) hideSuggest();
     });
 
-    // 东方财富搜索接口（CORS代理方式，失败静默处理）
+    // 东方财富搜索接口（JSONP，支持代码/名称/拼音首字母）
     async function fetchSuggest(keyword) {
-      const targetUrl = `https://suggest.eastmoney.com/SuggestData/Default.aspx?input=${encodeURIComponent(keyword)}&type=14`;
+      const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&count=10`;
       try {
-        const res = await fetch(CORS_PROXY + encodeURIComponent(targetUrl));
-        if (!res.ok) throw new Error('代理请求失败');
-        const text = await res.text();
-        const match = text.match(/var str\s*=\s*(\[.*?\]);?/s);
-        if (!match) {
-          hideSuggest();
-          return;
-        }
-        const list = JSON.parse(match[1]);
+        const json = await jsonpRequest(url, 'cb');
+        const list = (json && json.QuotationCodeTable && json.QuotationCodeTable.Data) || [];
         const stocks = [];
         list.forEach(item => {
-          const parts = item.split(',');
-          if (parts.length < 3) return;
-          const code = parts[1];
-          const name = parts[2];
-          if (/^\d{6}$/.test(code)) {
-            stocks.push({ code, name });
-          }
+          const code = item.Code;
+          // 仅保留沪深A股（6位代码 + 沪深市场）
+          if (!/^\d{6}$/.test(code)) return;
+          if (item.Classify !== 'AStock') return;
+          stocks.push({ code, name: item.Name });
         });
         renderSuggest(stocks.slice(0, 8));
       } catch (e) {
