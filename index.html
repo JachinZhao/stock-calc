@@ -58,7 +58,7 @@
     .search-wrap { position: relative; margin-bottom: 14px; }
     .search-input {
       width: 100%;
-      padding: 14px 18px 14px 44px;
+      padding: 14px 44px 14px 44px;
       border: 1.5px solid var(--line);
       border-radius: 14px;
       font-size: 15px;
@@ -72,6 +72,27 @@
       border-color: var(--brand);
       box-shadow: 0 0 0 4px rgba(5,150,105,0.12);
     }
+    .clear-btn {
+      position: absolute;
+      top: 50%;
+      right: 12px;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 22px;
+      border: none;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 22px;
+      text-align: center;
+      cursor: pointer;
+      display: none;
+      padding: 0;
+      transition: all 0.15s;
+    }
+    .clear-btn:hover { background: #cbd5e1; color: #334155; }
+    .clear-btn.show { display: block; }
     .suggest-list {
       position: absolute;
       top: 100%;
@@ -233,6 +254,7 @@
           placeholder="输入股票代码 / 名称 / 拼音首字母（如 fhgk）" 
           autocomplete="off"
         />
+        <button id="clearBtn" class="clear-btn" type="button" title="清除" onclick="clearInput()">×</button>
         <div id="suggestList" class="suggest-list"></div>
       </div>
 
@@ -328,6 +350,7 @@
     const resultCard = document.getElementById('resultCard');
     const errorMsg = document.getElementById('errorMsg');
     const suggestList = document.getElementById('suggestList');
+    const clearBtn = document.getElementById('clearBtn');
 
     let searchTimer = null;
     let currentStock = { code: '', name: '' };
@@ -343,6 +366,7 @@
     // 输入联想搜索
     input.addEventListener('input', e => {
       const val = e.target.value.trim();
+      toggleClearBtn();
       clearTimeout(searchTimer);
       if (val.length < 1) {
         hideSuggest();
@@ -350,6 +374,20 @@
       }
       searchTimer = setTimeout(() => fetchSuggest(val), 300);
     });
+
+    // 清除按钮显隐
+    function toggleClearBtn() {
+      clearBtn.classList.toggle('show', input.value.length > 0);
+    }
+
+    // 清空搜索框，方便查下一个
+    function clearInput() {
+      input.value = '';
+      currentStock = { code: '', name: '' };
+      hideSuggest();
+      toggleClearBtn();
+      input.focus();
+    }
 
     // 点击外部关闭下拉
     document.addEventListener('click', e => {
@@ -397,6 +435,7 @@
     function selectStock(code, name) {
       input.value = `${name} (${code})`;
       currentStock = { code, name };
+      toggleClearBtn();
       hideSuggest();
       handleQuery();
     }
