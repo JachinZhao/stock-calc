@@ -492,8 +492,9 @@
         const arr = d && (d.qfqday || d.day);
         if (!arr || arr.length < days) return null;
         const closes = arr.map(item => parseFloat(item[2]));
+        const dates = arr.map(item => item[0]);
         const name = (d.qt && d.qt[sym] && d.qt[sym][1]) || '';
-        return { closes, name };
+        return { closes, dates, name };
       } catch (e) {
         console.error('行情获取失败:', e);
         return null;
@@ -589,7 +590,25 @@
       return +fullDays.toFixed(1);
     }
 
-    // 计算近10天内同向异动次数（3日区间偏离滑动窗口）
+    // 从东方财富龙虎榜精确统计近10个交易日同向异动次数
+    // （上榜原因含“连续…涨幅偏离值累计”即连续3日涨幅偏离达标，主板20%/科创创业30%）
+    async function getAnomalyCountByLHB(code, cutoffDate) {
+      const filter = encodeURIComponent(`(SECURITY_CODE="${code}")`);
+      const url = `https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_DETAILS&columns=TRADE_DATE,EXPLANATION&pageSize=50&sortColumns=TRADE_DATE&sortTypes=-1&filter=${filter}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('龙虎榜请求失败');
+      const json = await res.json();
+      const data = (json && json.result && json.result.data) || [];
+      let count = 0;
+      data.forEach(item => {
+        const date = (item.TRADE_DATE || '').slice(0, 10);
+        const exp = item.EXPLANATION || '';
+        if (date >= cutoffDate && exp.includes('连续') && exp.includes('涨幅偏离值累计')) count++;
+      });
+      return count;
+    }
+
+    // 计算近10天内同向异动次数（3日区间偏离滑动窗口，龙虎榜不可用时的估算回退）
     function calcAnomalyCount(closes, indexCloses, threshold3d) {
       const len = closes.length;
       const startIdx = Math.max(0, len - 13);
@@ -639,6 +658,7 @@
 
         const stockCloses = stockRes.closes;
         const indexCloses = indexRes.closes;
+        const stockDates = stockRes.dates || [];
         const stockName = stockRes.name || code;
 
         // 1. 当前累计偏离值（连续N个交易日，第1日收盘为基准）
@@ -653,8 +673,14 @@
         const leftDays10 = calcLimitDays(stockCloses, indexCloses, 10, THRESHOLD_10D, limitRate);
         const leftDays30 = calcLimitDays(stockCloses, indexCloses, 30, THRESHOLD_30D, limitRate);
 
-        // 4. 同向异动次数 + 对应涨停估算
-        const anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
+        // 4. 同向异动次数：优先用龙虎榜精确计数，失败则回退到估算
+        const cutoffDate = stockDates.length >= 10 ? stockDates[stockDates.length - 10] : '';
+        let anomalyCount;
+        try {
+          anomalyCount = await getAnomalyCountByLHB(code, cutoffDate);
+        } catch (e) {
+          anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
+        }
         const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
         const anomalyLimitLeft = (anomalyLeft * anomaly3d / perLimitDev).toFixed(1);
 
