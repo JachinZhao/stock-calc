@@ -290,9 +290,17 @@
               <span class="info-label">近10日已触发</span>
               <span class="info-value" id="anomalyCount">-</span>
             </div>
+            <div class="info-row">
+              <span class="info-label">当前3日偏离</span>
+              <span class="info-value" id="dev3">-</span>
+            </div>
             <div class="info-row highlight-row">
               <span class="info-label">距严重异动阈值</span>
               <span class="info-value" id="anomalyLeft">-</span>
+            </div>
+            <div class="info-row sub-row">
+              <span class="info-label">次日触发下一次需涨</span>
+              <span class="info-value" id="anomalyNextDay">-</span>
             </div>
           </div>
         </div>
@@ -682,7 +690,13 @@
           anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
         }
         const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
-        const anomalyLimitLeft = (anomalyLeft * anomaly3d / perLimitDev).toFixed(1);
+        // 当前3日滚动偏离 & 触发下一次同向异动所需次日涨幅
+        const dev3d = calcDeviation(stockCloses, indexCloses, 3);
+        const nextAnomalyPct = calcNextDayTrigger(stockCloses, indexCloses, 3, anomaly3d);
+        // 距严重异动涨停数：下一次所需 +（其余每次约1个连续涨停）
+        const anomalyLimitLeft = anomalyLeft > 0
+          ? (nextAnomalyPct / perLimitDev + (anomalyLeft - 1)).toFixed(1)
+          : '0';
 
         // 渲染结果
         document.getElementById('stockName').textContent = stockName;
@@ -699,7 +713,14 @@
         document.getElementById('nextDay30').textContent = nextDay30 <= 0 ? '已触发' : `≥ ${nextDay30.toFixed(2)}%`;
         
         document.getElementById('anomalyCount').textContent = `${anomalyCount} 次`;
-        document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次 ≈ ${anomalyLimitLeft} 个涨停`;
+        document.getElementById('dev3').textContent = dev3d.toFixed(2) + '%';
+        if (anomalyLeft > 0) {
+          document.getElementById('anomalyLeft').textContent = `还差 ${anomalyLeft} 次 ≈ ${anomalyLimitLeft} 个涨停`;
+          document.getElementById('anomalyNextDay').textContent = nextAnomalyPct <= 0 ? '已达标' : `≥ ${nextAnomalyPct.toFixed(2)}%`;
+        } else {
+          document.getElementById('anomalyLeft').textContent = '已触发严重异动';
+          document.getElementById('anomalyNextDay').textContent = '-';
+        }
 
         resultCard.classList.add('show');
       } catch (e) {
