@@ -665,6 +665,48 @@
       return count;
     }
 
+    // 最近 days 个交易日"单日偏离值相加"(个股日涨幅-指数日涨幅)，即官方同向异动口径
+    function sumDailyDev(stockCloses, indexCloses, days) {
+      const len = stockCloses.length;
+      if (len <= days) return 0;
+      let sum = 0;
+      for (let k = len - days; k < len; k++) {
+        sum += (stockCloses[k] / stockCloses[k-1] - 1) * 100 - (indexCloses[k] / indexCloses[k-1] - 1) * 100;
+      }
+      return sum;
+    }
+
+    // 估算距严重异动还需几个连续涨停（按官方同向异动规则模拟）：
+    // 1) 偏离=连续3日"单日偏离值相加"；2) 触发后次一交易日重新计算，故不会连续两天计次（隔天触发）
+    // 末次只需补足达标比例，取小数
+    function calcAnomalyLimitLeft(closes, indexCloses, anomalyLeft, threshold3d, limitRate) {
+      if (anomalyLeft <= 0) return 0;
+      const dev = [];
+      for (let k = 1; k < closes.length; k++) {
+        dev.push((closes[k] / closes[k-1] - 1) * 100 - (indexCloses[k] / indexCloses[k-1] - 1) * 100);
+      }
+      const limitDev = limitRate * 100; // 涨停日偏离(假设指数不涨)
+      let triggers = 0, prevTrig = false, n = 0, guard = 0;
+      while (guard++ < 80) {
+        n++;
+        dev.push(limitDev);
+        const L = dev.length;
+        const sum3 = dev[L-1] + dev[L-2] + dev[L-3];
+        if (sum3 >= threshold3d && !prevTrig) {
+          triggers++;
+          prevTrig = true;
+          if (triggers === anomalyLeft) {
+            const need = threshold3d - (dev[L-2] + dev[L-3]);
+            const frac = Math.max(0, Math.min(1, need / limitDev));
+            return +((n - 1) + frac).toFixed(1);
+          }
+        } else {
+          prevTrig = false;
+        }
+      }
+      return +n.toFixed(1);
+    }
+
     // 计算近10天内同向异动次数（3日区间偏离滑动窗口，龙虎榜不可用时的估算回退）
     function calcAnomalyCount(closes, indexCloses, threshold3d) {
       const len = closes.length;
@@ -752,13 +794,11 @@
           anomalyCount = calcAnomalyCount(stockCloses, indexCloses, anomaly3d);
         }
         const anomalyLeft = Math.max(0, anomaly10dMax - anomalyCount);
-        // 当前3日滚动偏离 & 触发下一次同向异动所需次日涨幅
-        const dev3d = calcDeviation(stockCloses, indexCloses, 3);
-        const nextAnomalyPct = calcNextDayTrigger(stockCloses, indexCloses, 3, anomaly3d);
-        // 距严重异动涨停数：下一次所需 +（其余每次约1个连续涨停）
-        const anomalyLimitLeft = anomalyLeft > 0
-          ? (nextAnomalyPct / perLimitDev + (anomalyLeft - 1)).toFixed(1)
-          : '0';
+        // 当前3日偏离(单日偏离值相加，官方同向异动口径) & 触发下一次同向异动所需次日涨幅
+        const dev3d = sumDailyDev(stockCloses, indexCloses, 3);
+        const nextAnomalyPct = Math.max(0, anomaly3d - sumDailyDev(stockCloses, indexCloses, 2));
+        // 距严重异动涨停数：假设连续涨停，3日滚动窗口模拟触发 anomalyLeft 次同向异动
+        const anomalyLimitLeft = calcAnomalyLimitLeft(stockCloses, indexCloses, anomalyLeft, anomaly3d, limitRate).toFixed(1);
 
         // 渲染结果
         document.getElementById('stockName').textContent = stockName;
